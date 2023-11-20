@@ -1,0 +1,20 @@
+Mouse Click: X=634, Y=475, Button=Button.left, Time=1.76
+Mouse Click: X=681, Y=571, Button=Button.left, Time=2.10
+Mouse Click: X=758, Y=470, Button=Button.left, Time=2.39
+Mouse Click: X=799, Y=581, Button=Button.left, Time=2.74
+Mouse Click: X=835, Y=482, Button=Button.left, Time=3.06
+Mouse Click: X=686, Y=577, Button=Button.left, Time=3.44
+Mouse Click: X=572, Y=463, Button=Button.left, Time=3.73
+Mouse Click: X=759, Y=565, Button=Button.left, Time=4.06
+blah
+blah
+blah
+blah
+blah
+blah
+blah
+testMouse Click: X=2391, Y=1323, Button=Button.left, Time=13.50
+Mouse Click: X=728, Y=578, Button=Button.left, Time=18.02
+Mouse Click: X=453, Y=584, Button=Button.right, Time=19.71
+Mouse Click: X=650, Y=520, Button=Button.left, Time=20.99
+\x03\x03

